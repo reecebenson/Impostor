@@ -49,7 +49,7 @@ To start contributing, you should clone this repository and check out to the `de
 
 ```bash
 git clone https://github.com/AeonLucid/Impostor.git && \
-  cd Impostor && \
+  cd Impostor && git checkout dev && \
   git submodule update --init --recursive && \
   git submodule update --recursive --remote && \
   git pull --recurse-submodules
