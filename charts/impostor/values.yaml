@@ -8,7 +8,7 @@ image:
   repository: rbensoncircle/impostor
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "amd64"
+  tag: "pr-1"
 
 imagePullSecrets: []
 nameOverride: ""
