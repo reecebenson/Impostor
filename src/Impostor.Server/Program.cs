@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Linq;
+using Agones;
+using Grpc.Core;
 using Impostor.Server.Data;
 using Impostor.Server.Events;
 using Impostor.Server.Events.Managers;
@@ -80,6 +83,10 @@ namespace Impostor.Server
                             // When a game has been created on this node, it stores the game code with its ip in redis.
                             services.AddSingleton<INodeLocator, NodeLocatorRedis>();
 
+                            // Use the configuration as source for the list of nodes to provide
+                            // when creating a game.
+                            services.AddSingleton<INodeProvider, NodeProviderAgones>();
+
                             // Dependency for the NodeLocatorRedis.
                             services.AddStackExchangeRedisCache(options =>
                             {
@@ -103,7 +110,14 @@ namespace Impostor.Server
 
                         // Use the configuration as source for the list of nodes to provide
                         // when creating a game.
-                        services.AddSingleton<INodeProvider, NodeProviderConfig>();
+                        services.AddSingleton<INodeProvider, NodeProviderAgones>();
+
+                        // Dependency for the NodeLocatorRedis.
+                        services.AddStackExchangeRedisCache(options =>
+                        {
+                            options.Configuration = redirector.Locator.Redis;
+                            options.InstanceName = "ImpostorRedis";
+                        });
                     }
                     else
                     {
@@ -112,21 +126,45 @@ namespace Impostor.Server
                         services.AddSingleton<INodeLocator, NodeLocatorNoOp>();
                     }
 
-                    services.AddSingleton<IClientManager, ClientManager>();
+                    var agones = new AgonesSDK();
 
                     if (redirector.Enabled && redirector.Master)
                     {
                         services.AddSingleton<IClientFactory, ClientFactory<ClientRedirector>>();
-
                         // For a master server, we don't need a GameManager.
                     }
                     else
                     {
                         services.AddSingleton<IClientFactory, ClientFactory<Client>>();
+                        services.AddSingleton<IEventManager, EventManager>();
                         services.AddSingleton<IGameManager, GameManager>();
+
+                        // Attempt to setup Agones
+                        try {
+                            var asyncConnected = agones.ConnectAsync();
+                            bool resultOk = asyncConnected.Result;
+                            if (resultOk) {
+                                // Configure game server
+                                var gameServer = agones.GetGameServerAsync().Result;
+                                services.Configure<ServerConfig>(myOptions =>
+                                {
+                                    myOptions.PublicIp = gameServer.Status.Address;
+                                    myOptions.PublicPort = Convert.ToUInt16(gameServer.Status.Ports.First().Port_);
+                                });
+                                services.AddHostedService<AgonesHealthCheck>();
+                            }
+                            else {
+                                Log.Fatal("Failed to setup Agones");
+                            }
+                        }
+                        catch (System.AggregateException ex)
+                        {
+                            Log.Fatal("Unable to connect to Agones");
+                            Log.Fatal(ex.Message);
+                        }
                     }
 
-                    services.AddSingleton<IEventManager, EventManager>();
+                    services.AddSingleton(agones);
                     services.UseHazelMatchmaking();
                     services.AddHostedService<MatchmakerService>();
                 })

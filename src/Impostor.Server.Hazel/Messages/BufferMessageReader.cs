@@ -1,41 +1,33 @@
 ﻿using System;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Impostor.Server.Net;
 using Impostor.Server.Net.Messages;
 
-namespace Impostor.Server.Hazel
+namespace Impostor.Server.Hazel.Messages
 {
     public class BufferMessageReader : IMessageReader
     {
-        // TODO: Remove _offset, we can slice the buffer.
-        private readonly int _offset;
-        private int _position;
-        private int readHead;
-        
-        public ReadOnlyMemory<byte> Buffer { get; }
-        
         public byte Tag { get; }
+        public ReadOnlyMemory<byte> Buffer { get; }
+        public int Position { get; set; }
+        public int Length => Buffer.Length;
 
-        public int Length { get; }
-
-        public int Position
-        {
-            get { return _position; }
-            set
-            {
-                _position = value;
-                readHead = value + _offset;
-            }
-        }
-
-        public BufferMessageReader(byte tag, ReadOnlyMemory<byte> buffer, int offset, int length)
+        public BufferMessageReader(byte tag, ReadOnlyMemory<byte> buffer)
         {
             Tag = tag;
             Buffer = buffer;
-            Length = length;
-            _offset = offset;
-            readHead = offset;
+        }
+
+        public IMessageReader ReadMessage()
+        {
+            var length = ReadUInt16();
+            var tag = ReadByte();
+            var pos = Position;
+
+            Position += length;
+
+            return new BufferMessageReader(tag, Buffer.Slice(pos, length));
         }
 
         public bool ReadBoolean()
@@ -56,70 +48,43 @@ namespace Impostor.Server.Hazel
 
         public ushort ReadUInt16()
         {
-            // TODO: Refactor to System.Buffers.Binary.BinaryPrimitives
-            
-            ushort output =
-                (ushort)(FastByte()
-                         | FastByte() << 8);
+            var output = BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Span.Slice(Position));
+            Position += sizeof(ushort);
             return output;
         }
 
         public short ReadInt16()
         {
-            // TODO: Refactor to System.Buffers.Binary.BinaryPrimitives
-            
-            short output =
-                (short)(FastByte() | FastByte() << 8);
+            var output = BinaryPrimitives.ReadInt16LittleEndian(Buffer.Span.Slice(Position));
+            Position += sizeof(short);
             return output;
         }
 
         public uint ReadUInt32()
         {
-            // TODO: Refactor to System.Buffers.Binary.BinaryPrimitives
-            
-            uint output = FastByte()
-                          | (uint)FastByte() << 8
-                          | (uint)FastByte() << 16
-                          | (uint)FastByte() << 24;
-
+            var output = BinaryPrimitives.ReadUInt32LittleEndian(Buffer.Span.Slice(Position));
+            Position += sizeof(uint);
             return output;
         }
 
         public int ReadInt32()
         {
-            // TODO: Refactor to System.Buffers.Binary.BinaryPrimitives
-            
-            int output = FastByte()
-                         | FastByte() << 8
-                         | FastByte() << 16
-                         | FastByte() << 24;
-
+            var output = BinaryPrimitives.ReadInt32LittleEndian(Buffer.Span.Slice(Position));
+            Position += sizeof(int);
             return output;
         }
 
         public unsafe float ReadSingle()
         {
-            // TODO: Refactor to System.Buffers.Binary.BinaryPrimitives
-            
-            float output = 0;
-            fixed (byte* bufPtr = &Buffer.Span[readHead])
-            {
-                byte* outPtr = (byte*)&output;
-
-                *outPtr = *bufPtr;
-                *(outPtr + 1) = *(bufPtr + 1);
-                *(outPtr + 2) = *(bufPtr + 2);
-                *(outPtr + 3) = *(bufPtr + 3);
-            }
-
-            Position += 4;
+            var output = BinaryPrimitives.ReadSingleLittleEndian(Buffer.Span.Slice(Position));
+            Position += sizeof(float);
             return output;
         }
 
         public string ReadString()
         {
             var len = ReadPackedInt32();
-            var output = Encoding.UTF8.GetString(Buffer.Span.Slice(readHead, len));
+            var output = Encoding.UTF8.GetString(Buffer.Span.Slice(Position, len));
             Position += len;
             return output;
         }
@@ -132,7 +97,7 @@ namespace Impostor.Server.Hazel
 
         public ReadOnlyMemory<byte> ReadBytes(int length)
         {
-            var output = Buffer.Slice(readHead, length);
+            var output = Buffer.Slice(Position, length);
             Position += length;
             return output;
         }
@@ -170,26 +135,25 @@ namespace Impostor.Server.Hazel
 
         public void CopyTo(IMessageWriter writer)
         {
-            int offset, length;
-            if (Tag == byte.MaxValue)
-            {
-                offset = _offset;
-                length = Length;
-            }
-            else
-            {
-                offset = _offset - 3;
-                length = Length + 3;
-            }
+            writer.Write((ushort) Length);
+            writer.Write((byte) Tag);
+            writer.Write(Buffer);
+        }
 
-            writer.Write(Buffer.Slice(offset, length));
+        public IMessageReader Slice(int start)
+        {
+            return new BufferMessageReader(Tag, Buffer.Slice(start));
+        }
+
+        public IMessageReader Slice(int start, int length)
+        {
+            return new BufferMessageReader(Tag, Buffer.Slice(start, length));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private byte FastByte()
         {
-            _position++;
-            return Buffer.Span[readHead++];
+            return Buffer.Span[Position++];
         }
     }
 }
