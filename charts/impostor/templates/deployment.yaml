@@ -49,12 +49,12 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
             - name: config-volume
-              mountPath: /app/config.json
-              subPath: config.json
+              mountPath: /app
+              # subPath: config.json
       volumes:
         - name: config-volume
-          secret:
-            secretName: {{ .Values.configSecretName }}
+          # secret:
+          #   secretName: {{ .Values.configSecretName }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

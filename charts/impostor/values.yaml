@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: aeonlucid/impostor
-  pullPolicy: IfNotPresent
+  repository: rbensoncircle/impostor
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "amd64"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -60,7 +60,7 @@ resources:
 
 autoscaling:
   enabled: true
-  minReplicas: 3
+  minReplicas: 1
   maxReplicas: 100
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
