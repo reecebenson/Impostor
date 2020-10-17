@@ -135,24 +135,36 @@ namespace Impostor.Server
                     }
                     else
                     {
-                        services.AddSingleton<IClientManager, ClientManager>();
-                        services.AddSingleton<GameManager>();
-                        bool ok = agones.ConnectAsync().Result;
-                        if (!ok)
-                        {
-                            Log.Fatal("failed to setup agones");
+                        services.AddSingleton<IClientFactory, ClientFactory<Client>>();
+                        services.AddSingleton<IEventManager, EventManager>();
+                        services.AddSingleton<IGameManager, GameManager>();
+
+                        // Attempt to setup Agones
+                        try {
+                            var asyncConnected = agones.ConnectAsync();
+                            bool resultOk = asyncConnected.Result;
+                            if (resultOk) {
+                                // Configure game server
+                                var gameServer = agones.GetGameServerAsync().Result;
+                                services.Configure<ServerConfig>(myOptions =>
+                                {
+                                    myOptions.PublicIp = gameServer.Status.Address;
+                                    myOptions.PublicPort = Convert.ToUInt16(gameServer.Status.Ports.First().Port_);
+                                });
+                                services.AddHostedService<AgonesHealthCheck>();
+                            }
+                            else {
+                                Log.Fatal("Failed to setup Agones");
+                            }
                         }
-                        var gameServer = agones.GetGameServerAsync().Result;
-                        services.Configure<ServerConfig>(myOptions =>
+                        catch (System.AggregateException ex)
                         {
-                            myOptions.PublicIp = gameServer.Status.Address;
-                            myOptions.PublicPort = Convert.ToUInt16(gameServer.Status.Ports.First().Port_);
-                        });
-                        services.AddHostedService<AgonesHealthCheck>();
+                            Log.Fatal("Unable to connect to Agones");
+                            Log.Fatal(ex.Message);
+                        }
                     }
 
                     services.AddSingleton(agones);
-                    services.AddSingleton<IEventManager, EventManager>();
                     services.UseHazelMatchmaking();
                     services.AddHostedService<MatchmakerService>();
                 })

@@ -59,6 +59,7 @@ namespace Impostor.Server.Net.Redirector
             }
             catch (HttpOperationException e)
             {
+                Console.WriteLine("Failed a HttpOperation in NodeProviderAgones.cs");
                 if (e.Message != "Operation returned an invalid status code 'OK'")
                 {
                     Console.WriteLine(e.Response.Content);

@@ -38,6 +38,9 @@ RUN case "$TARGETARCH" in \
 
 # Final image.
 FROM --platform=$TARGETPLATFORM mcr.microsoft.com/dotnet/runtime-deps:5.0
+RUN echo 'http://dl-cdn.alpinelinux.org/alpine/v3.8/main' >> /etc/apk/repositories && \
+    apk update --no-cache && \
+    apk add --no-cache bash libc6-compat=1.1.19-r11
 WORKDIR /app
 COPY --from=build /app ./
 # RUN ln -s /lib/x86_64-linux-gnu/libdl-2.28.so /lib/x86_64-linux-gnu/libdl.so
