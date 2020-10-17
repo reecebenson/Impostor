@@ -3,7 +3,12 @@ using System.Linq;
 using Agones;
 using Grpc.Core;
 using Impostor.Server.Data;
+using Impostor.Server.Events;
+using Impostor.Server.Events.Managers;
+using Impostor.Server.Games.Managers;
+using Impostor.Server.Hazel;
 using Impostor.Server.Net;
+using Impostor.Server.Net.Factories;
 using Impostor.Server.Net.Manager;
 using Impostor.Server.Net.Redirector;
 using Microsoft.Extensions.Configuration;
@@ -46,9 +51,14 @@ namespace Impostor.Server
                 Log.CloseAndFlush();
             }
         }
-        
+
         private static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+#if DEBUG
+                .UseEnvironment(Environment.GetEnvironmentVariable("IMPOSTOR_ENV") ?? "Development")
+#else
+                .UseEnvironment("Production")
+#endif
                 .ConfigureAppConfiguration(builder =>
                 {
                     builder.AddJsonFile("config.json", true);
@@ -60,16 +70,40 @@ namespace Impostor.Server
                 {
                     var redirector = host.Configuration
                         .GetSection(ServerRedirectorConfig.Section)
-                        .Get<ServerRedirectorConfig>();
+                        .Get<ServerRedirectorConfig>() ?? new ServerRedirectorConfig();
+
                     services.Configure<ServerConfig>(host.Configuration.GetSection(ServerConfig.Section));
                     services.Configure<ServerRedirectorConfig>(host.Configuration.GetSection(ServerRedirectorConfig.Section));
 
                     if (redirector.Enabled)
                     {
-                        // When joining a game, it retrieves the game server ip from redis.
-                        // When a game has been created on this node, it stores the game code with its ip in redis.
-                        services.AddSingleton<INodeLocator, NodeLocatorRedis>();
-                        
+                        if (!string.IsNullOrEmpty(redirector.Locator.Redis))
+                        {
+                            // When joining a game, it retrieves the game server ip from redis.
+                            // When a game has been created on this node, it stores the game code with its ip in redis.
+                            services.AddSingleton<INodeLocator, NodeLocatorRedis>();
+
+                            // Dependency for the NodeLocatorRedis.
+                            services.AddStackExchangeRedisCache(options =>
+                            {
+                                options.Configuration = redirector.Locator.Redis;
+                                options.InstanceName = "ImpostorRedis";
+                            });
+                        }
+                        else if (!string.IsNullOrEmpty(redirector.Locator.UdpMasterEndpoint))
+                        {
+                            services.AddSingleton<INodeLocator, NodeLocatorUdp>();
+
+                            if (redirector.Master)
+                            {
+                                services.AddHostedService<NodeLocatorUdpService>();
+                            }
+                        }
+                        else
+                        {
+                            throw new Exception("Missing a valid NodeLocator config.");
+                        }
+
                         // Use the configuration as source for the list of nodes to provide
                         // when creating a game.
                         services.AddSingleton<INodeProvider, NodeProviderAgones>();
@@ -92,7 +126,8 @@ namespace Impostor.Server
 
                     if (redirector.Enabled && redirector.Master)
                     {
-                        services.AddSingleton<IClientManager, ClientManagerRedirector>();
+                        services.AddSingleton<IClientFactory, ClientFactory<ClientRedirector>>();
+
                         // For a master server, we don't need a GameManager.
                     }
                     else
@@ -118,6 +153,7 @@ namespace Impostor.Server
                     services.AddSingleton<Matchmaker>();
                     services.AddHostedService<MatchmakerService>();
                 })
+                .UseConsoleLifetime()
                 .UseSerilog();
     }
 }

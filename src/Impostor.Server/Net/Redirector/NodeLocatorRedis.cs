@@ -2,16 +2,17 @@
 using System.Net;
 using Agones;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 
 namespace Impostor.Server.Net.Redirector
 {
     public class NodeLocatorRedis : INodeLocator
     {
         private readonly IDistributedCache _cache;
-        private readonly AgonesSDK _agones;
-        
-        public NodeLocatorRedis(IDistributedCache cache, AgonesSDK agones)
+
+        public NodeLocatorRedis(ILogger<NodeLocatorRedis> logger, IDistributedCache cache)
         {
+            logger.LogWarning("Using the redis NodeLocator.");
             _cache = cache;
             _agones = agones;
         }
@@ -23,7 +24,7 @@ namespace Impostor.Server.Net.Redirector
             {
                 return null;
             }
-            
+
             return IPEndPoint.Parse(entry);
         }
 
@@ -31,7 +32,7 @@ namespace Impostor.Server.Net.Redirector
         {
             _cache.SetString(gameCode, endPoint.ToString(), new DistributedCacheEntryOptions
             {
-                SlidingExpiration = TimeSpan.FromHours(1)
+                SlidingExpiration = TimeSpan.FromHours(1),
             });
         }
 

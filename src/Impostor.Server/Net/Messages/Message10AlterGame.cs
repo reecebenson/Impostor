@@ -1,26 +1,27 @@
-﻿using Hazel;
-using Impostor.Shared.Innersloth.Data;
+﻿using Impostor.Shared.Innersloth.Data;
 
 namespace Impostor.Server.Net.Messages
 {
     internal static class Message10AlterGame
     {
-        public static void Serialize(MessageWriter writer, bool clear, int gameCode)
+        public static void Serialize(IMessageWriter writer, bool clear, int gameCode, bool isPublic)
         {
             if (clear)
             {
-                writer.Clear(SendOption.Reliable);
+                writer.Clear(MessageType.Reliable);
             }
-            
-            writer.StartMessage(MessageFlags.HostGame);
+
+            writer.StartMessage(MessageFlags.AlterGame);
             writer.Write(gameCode);
+            writer.Write((byte)AlterGameTags.ChangePrivacy);
+            writer.Write(isPublic);
             writer.EndMessage();
         }
 
-        public static void Deserialize(MessageReader reader, out AlterGameTags gameTag, out bool value)
+        public static void Deserialize(IMessageReader reader, out AlterGameTags gameTag, out bool isPublic)
         {
             gameTag = (AlterGameTags) reader.ReadByte();
-            value = reader.ReadBoolean();
+            isPublic = reader.ReadBoolean();
         }
     }
 }
