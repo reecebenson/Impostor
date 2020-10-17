@@ -83,6 +83,10 @@ namespace Impostor.Server
                             // When a game has been created on this node, it stores the game code with its ip in redis.
                             services.AddSingleton<INodeLocator, NodeLocatorRedis>();
 
+                            // Use the configuration as source for the list of nodes to provide
+                            // when creating a game.
+                            services.AddSingleton<INodeProvider, NodeProviderAgones>();
+
                             // Dependency for the NodeLocatorRedis.
                             services.AddStackExchangeRedisCache(options =>
                             {
@@ -127,7 +131,6 @@ namespace Impostor.Server
                     if (redirector.Enabled && redirector.Master)
                     {
                         services.AddSingleton<IClientFactory, ClientFactory<ClientRedirector>>();
-
                         // For a master server, we don't need a GameManager.
                     }
                     else
@@ -149,8 +152,8 @@ namespace Impostor.Server
                     }
 
                     services.AddSingleton(agones);
-
-                    services.AddSingleton<IMatchmaker>();
+                    services.AddSingleton<IEventManager, EventManager>();
+                    services.UseHazelMatchmaking();
                     services.AddHostedService<MatchmakerService>();
                 })
                 .UseConsoleLifetime()
