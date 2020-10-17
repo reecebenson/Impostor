@@ -40,6 +40,6 @@ RUN case "$TARGETARCH" in \
 FROM --platform=$TARGETPLATFORM mcr.microsoft.com/dotnet/runtime-deps:5.0
 WORKDIR /app
 COPY --from=build /app ./
-RUN ln -s /lib/x86_64-linux-gnu/libdl-2.28.so /lib/x86_64-linux-gnu/libdl.so
+# RUN ln -s /lib/x86_64-linux-gnu/libdl-2.28.so /lib/x86_64-linux-gnu/libdl.so
 EXPOSE 22023/udp
 ENTRYPOINT ["/app/Impostor.Server"]
