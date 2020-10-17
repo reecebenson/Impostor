@@ -17,14 +17,14 @@ namespace Impostor.Server.Net
         private readonly ILogger<MatchmakerService> _logger;
         private readonly ServerConfig _serverConfig;
         private readonly ServerRedirectorConfig _redirectorConfig;
-        private readonly Matchmaker _matchmaker;
+        private readonly IMatchmaker _matchmaker;
         private readonly AgonesSDK _agones;
 
         public MatchmakerService(
             ILogger<MatchmakerService> logger,
             IOptions<ServerConfig> serverConfig,
             IOptions<ServerRedirectorConfig> redirectorConfig,
-            Matchmaker matchmaker,
+            IMatchmaker matchmaker,
             AgonesSDK agones)
         {
             _logger = logger;
@@ -36,19 +36,22 @@ namespace Impostor.Server.Net
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            _matchmaker.Start();
+            var endpoint = new IPEndPoint(IPAddress.Parse(_serverConfig.ListenIp), _serverConfig.ListenPort);
+
+            await _matchmaker.StartAsync(endpoint);
+
             if (_redirectorConfig.Enabled && _redirectorConfig.Master == false)
             {
                 var result = _agones.ReadyAsync().Result;
                 if (result.StatusCode != StatusCode.OK)
                 {
-                    Log.Fatal("failed to set agones ready state");
+                    Log.Fatal("Failed to set agones ready state");
                 }
             }
             
             _logger.LogInformation("Matchmaker is listening on {0}:{1}, the public server ip is {2}:{3}.", 
-                _matchmaker.EndPoint.Address, 
-                _matchmaker.EndPoint.Port,
+                endpoint.Address, 
+                endpoint.Port,
                 _serverConfig.PublicIp, 
                 _serverConfig.PublicPort);
 

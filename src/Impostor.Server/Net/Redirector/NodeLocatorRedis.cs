@@ -9,8 +9,9 @@ namespace Impostor.Server.Net.Redirector
     public class NodeLocatorRedis : INodeLocator
     {
         private readonly IDistributedCache _cache;
+        private readonly AgonesSDK _agones;
 
-        public NodeLocatorRedis(ILogger<NodeLocatorRedis> logger, IDistributedCache cache)
+        public NodeLocatorRedis(ILogger<NodeLocatorRedis> logger, IDistributedCache cache, AgonesSDK agones)
         {
             logger.LogWarning("Using the redis NodeLocator.");
             _cache = cache;

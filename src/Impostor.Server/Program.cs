@@ -111,7 +111,7 @@ namespace Impostor.Server
                         // Dependency for the NodeLocatorRedis.
                         services.AddStackExchangeRedisCache(options =>
                         {
-                            options.Configuration = redirector.Redis;
+                            options.Configuration = redirector.Locator.Redis;
                             options.InstanceName = "ImpostorRedis";
                         });
                     }
@@ -150,7 +150,7 @@ namespace Impostor.Server
 
                     services.AddSingleton(agones);
 
-                    services.AddSingleton<Matchmaker>();
+                    services.AddSingleton<IMatchmaker>();
                     services.AddHostedService<MatchmakerService>();
                 })
                 .UseConsoleLifetime()
