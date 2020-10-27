@@ -34,8 +34,31 @@ namespace Impostor.Server.Net.Manager
             _nodeLocator = nodeLocator;
             _serviceProvider = serviceProvider;
             _eventManager = eventManager;
-            _publicIp = new IPEndPoint(IPAddress.Parse(config.Value.PublicIp), config.Value.PublicPort);
             _games = new ConcurrentDictionary<int, Game>();
+
+            IPAddress _ipAddress;
+            if (IPAddress.TryParse(config.Value.PublicIp, out _ipAddress)) {
+                switch (_ipAddress.AddressFamily) {
+                    case System.Net.Sockets.AddressFamily.InterNetwork:
+                        _publicIp = new IPEndPoint(_ipAddress, config.Value.PublicPort);
+                        break;
+                    case System.Net.Sockets.AddressFamily.InterNetworkV6:
+                        // TODO: IPv6 Support
+                        throw new NotImplementedException("IPv6 is currently not supported.");
+                        break;
+                    default:
+                        IPAddress[] potentialIps = Dns.GetHostAddresses(config.Value.PublicIp);
+                        if (potentialIps.Length > 0)
+                        { 
+                            _publicIp = new IPEndPoint(potentialIps[0], config.Value.PublicPort);
+                        }
+                        else
+                        {
+                            throw new ImpostorException($"Unable to handle invalid PublicIp: '{config.Value.PublicIp}'");
+                        }
+                        break;
+                }
+            }
         }
 
         public IEnumerable<IGame> Games => _games.Select(kv => kv.Value);
